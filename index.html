@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#21160f">
+  <title>BHARAT 360 | Indian Heritage Virtual Museum</title>
+  <script src="./assets/vendor/aframe.min.js"></script>
+  <script>
+    AFRAME.registerComponent('fit-sculpture', {
+      schema: { height: { type: 'number', default: 0.96 } },
+      init() {
+        this.el.addEventListener('model-loaded', () => {
+          const root = this.el.object3D;
+          root.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(root);
+          const size = box.getSize(new THREE.Vector3());
+          if (!Number.isFinite(size.y) || size.y <= 0) return;
+          const parent = root.parent;
+          const centerLocal = parent.worldToLocal(box.getCenter(new THREE.Vector3()));
+          const parentWorld = parent.getWorldPosition(new THREE.Vector3());
+          const bottomLocal = parent.worldToLocal(new THREE.Vector3(parentWorld.x, box.min.y, parentWorld.z));
+          const factor = this.data.height / size.y;
+          root.scale.setScalar(factor);
+          root.position.set(-centerLocal.x * factor, -bottomLocal.y * factor, -centerLocal.z * factor);
+          root.traverse(object => { if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; } });
+          root.updateMatrixWorld(true);
+        });
+      }
+    });
+    AFRAME.registerComponent('slow-turn', {
+      tick(time, delta) { this.el.object3D.rotation.y += delta * 0.0001; }
+    });
+    AFRAME.registerComponent('heritage-surface', {
+      schema: {
+        color: { type: 'color', default: '#a97946' },
+        roughness: { type: 'number', default: 0.72 },
+        metalness: { type: 'number', default: 0.12 }
+      },
+      init() {
+        this.el.addEventListener('model-loaded', event => {
+          event.detail.model.traverse(object => {
+            if (!object.isMesh) return;
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            const updatedMaterials = materials.map(source => {
+              const material = source.clone();
+              material.color.set(this.data.color);
+              material.roughness = this.data.roughness;
+              material.metalness = this.data.metalness;
+              material.needsUpdate = true;
+              return material;
+            });
+            // THREE.Mesh expects one material for a single-material GLB unless
+            // its geometry has material groups. Assigning a one-item array can
+            // leave the optimized scans with no drawable groups.
+            object.material = Array.isArray(object.material) ? updatedMaterials : updatedMaterials[0];
+          });
+        });
+      }
+    });
+  </script>
+  <style>
+    :root { --ink:#21160f; --panel:#2b1d14; --sand:#e9d5b3; --gold:#d4a64b; --muted:#c6b69c; }
+    * { box-sizing:border-box }
+    body { margin:0; font-family:Georgia,'Times New Roman',serif; color:var(--sand); background:var(--ink); }
+    a-scene { position:fixed; inset:0; z-index:0 }
+    .topbar { position:fixed; z-index:3; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 22px; min-height:72px; background:linear-gradient(180deg,rgba(24,16,11,.97),rgba(24,16,11,.84)); border-bottom:1px solid rgba(212,166,75,.5); box-shadow:0 5px 20px #0003; font-family:Arial,sans-serif }
+    .brand { font:700 17px Arial,sans-serif; letter-spacing:.19em; color:#f1d59a; white-space:nowrap }
+    .brand small { display:block; margin-top:4px; color:#bca887; font:10px Arial,sans-serif; letter-spacing:.16em }
+    .nav, .tour-controls { display:flex; flex-wrap:wrap; gap:8px }
+    button { color:var(--sand); background:#39271a; border:1px solid #806232; padding:9px 12px; border-radius:4px; cursor:pointer; font:600 12px Arial,sans-serif; transition:.18s ease; white-space:nowrap }
+    button:hover, button.active { background:#725124; border-color:#e0bd72; color:#fff3d7 }
+    button.primary { background:#b17c2e; color:#1d140e; border-color:#e7c579 }
+    button:focus-visible { outline:2px solid #f1d59a; outline-offset:2px }
+    .hint { position:fixed; z-index:2; left:18px; bottom:16px; padding:10px 13px; background:rgba(33,22,15,.9); border:1px solid rgba(212,166,75,.46); border-radius:4px; color:#e5d4b5; font:12px/1.5 Arial,sans-serif; box-shadow:0 4px 18px #0003 }
+    #browseExhibits { position:fixed; z-index:3; right:18px; bottom:76px; padding:12px 16px; box-shadow:0 5px 20px #0006 }
+    .veil { position:fixed; z-index:5; inset:0; display:grid; place-items:center; padding:20px; background:rgba(21,14,10,.82); backdrop-filter:blur(5px) }
+    .welcome, .info { width:min(560px,100%); padding:34px; background:linear-gradient(145deg,#38271b,#21160f 72%); border:1px solid #b18a45; box-shadow:0 22px 70px #0009; border-radius:8px }
+    .welcome { text-align:center }
+    .eyebrow { color:#d9b76c; font:700 11px Arial,sans-serif; letter-spacing:.22em; text-transform:uppercase }
+    h1 { margin:12px 0 6px; font-size:clamp(34px,7vw,58px); color:#f3dfb0; letter-spacing:.12em }
+    h2 { margin:8px 0 14px; color:#f0d49a; font-size:27px }
+    p { color:#d2c2a8; font:15px/1.65 Arial,sans-serif }
+    .welcome .controls { margin:22px 0; padding:14px; border-top:1px solid #705a38; border-bottom:1px solid #705a38; color:#e4d6bc; font:13px/1.8 Arial,sans-serif }
+    .info { position:relative; max-height:90vh; overflow:auto }
+    .catalog { width:min(680px,100%); max-height:88vh; overflow:auto; padding:28px; background:linear-gradient(145deg,#38271b,#21160f 72%); border:1px solid #b18a45; box-shadow:0 22px 70px #0009; border-radius:8px }
+    .catalog-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px }
+    .catalog h2 { margin:0 }
+    .catalog-group { margin-top:18px }
+    .catalog-group h3 { margin:0 0 8px; color:#d9b76c; font:700 11px Arial,sans-serif; letter-spacing:.16em; text-transform:uppercase }
+    .catalog-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:8px }
+    .catalog-list button { text-align:left; white-space:normal; min-height:44px }
+    .info .close { position:absolute; top:14px; right:14px; padding:7px 11px }
+    .info dl { display:grid; grid-template-columns:110px 1fr; gap:8px 12px; font:13px/1.5 Arial,sans-serif }
+    .info dt { color:#d8b66c; font-weight:bold; text-transform:uppercase; letter-spacing:.08em; font-size:10px }
+    .info dd { margin:0; color:#e1d5c0 }
+    #tourStatus { color:#d8b66c; font:12px Arial,sans-serif; align-self:center; min-width:110px }
+    .hidden { display:none !important }
+    @media(max-width:980px) { .topbar { align-items:flex-start; flex-direction:column; gap:9px; padding:10px 14px } .brand { font-size:15px } .nav { gap:6px } }
+    @media(max-width:600px) { .nav { display:grid; grid-template-columns:1fr 1fr; width:100% } .tour-controls { width:100% } button { padding:8px 9px; font-size:11px } .hint { bottom:8px; left:8px; right:8px; text-align:center; padding-right:125px } #browseExhibits { right:8px; bottom:66px; padding:9px 11px } .welcome,.info,.catalog { padding:24px } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">BHARAT 360<small>INDIAN HERITAGE VIRTUAL MUSEUM</small></div>
+    <nav class="nav" aria-label="Exhibition sections">
+      <button class="section-button active" data-section="ancient">Ancient India</button>
+      <button class="section-button" data-section="architecture">Architecture &amp; Monuments</button>
+      <button class="section-button" data-section="culture">Art &amp; Culture</button>
+      <button class="primary" id="tourStart">Start Guided Tour</button>
+    </nav>
+    <div class="tour-controls hidden" id="tourControls">
+      <span id="tourStatus"></span><button id="tourPrev">Previous</button><button class="primary" id="tourNext">Next</button><button id="tourExit">Exit Tour</button>
+    </div>
+  </header>
+  <div class="hint">W A S D to move · Mouse to look · Wheel to zoom · Click artwork or sculpture for its story</div>
+  <button id="browseExhibits" class="primary" type="button">Browse Exhibits · Info</button>
+
+  <section class="veil hidden" id="exhibitCatalog" role="dialog" aria-modal="true" aria-labelledby="catalogTitle">
+    <div class="catalog">
+      <div class="catalog-head"><div><div class="eyebrow">Explore the collection</div><h2 id="catalogTitle">Exhibits &amp; stories</h2></div><button id="catalogClose" type="button">Close ×</button></div>
+      <div class="catalog-group"><h3>Ancient India</h3><div class="catalog-list"><button type="button" data-catalog-exhibit="ajanta">Ajanta Cave Murals</button><button type="button" data-catalog-exhibit="sarnath">Lion Capital of Sarnath</button><button type="button" data-catalog-exhibit="padmapani">Padmapani Bodhisattva</button></div></div>
+      <div class="catalog-group"><h3>Architecture &amp; Monuments</h3><div class="catalog-list"><button type="button" data-catalog-exhibit="taj">Taj Mahal</button><button type="button" data-catalog-exhibit="konark">Konark Sun Temple</button><button type="button" data-catalog-exhibit="hampi">Virupaksha Temple, Hampi</button></div></div>
+      <div class="catalog-group"><h3>Art &amp; Culture</h3><div class="catalog-list"><button type="button" data-catalog-exhibit="madhubani">Madhubani (Mithila) Painting</button><button type="button" data-catalog-exhibit="nataraja">Shiva Nataraja bronze</button><button type="button" data-catalog-exhibit="ganesha">Khmer Ganesha sandstone</button></div></div>
+    </div>
+  </section>
+
+  <section class="veil" id="welcome" aria-labelledby="welcomeTitle">
+    <div class="welcome">
+      <div class="eyebrow">A journey through time and tradition</div>
+      <h1 id="welcomeTitle">BHARAT 360</h1>
+      <p>Explore the living legacy of India, from ancient ideas and monumental architecture to art shaped by communities across the subcontinent.</p>
+      <div class="controls"><strong>Navigate the gallery</strong><br>W A S D move · Mouse look · Scroll to zoom<br>Click artwork or sculpture, or use Browse Exhibits · Info.</div>
+      <button class="primary" id="explore">Start Exploring</button>
+    </div>
+  </section>
+
+  <section class="veil hidden" id="infoPanel" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <article class="info">
+      <button class="close" id="infoClose" aria-label="Close exhibit information">Close ×</button>
+      <div class="eyebrow" id="infoSection"></div><h2 id="infoTitle"></h2>
+      <dl><dt>Period</dt><dd id="infoPeriod"></dd><dt>Location</dt><dd id="infoLocation"></dd></dl>
+      <p id="infoSignificance"></p>
+    </article>
+  </section>
+
+  <a-scene gltf-model="dracoDecoderPath: ./assets/vendor/draco/" background="color: #3a2a1d" fog="type: exponential; color: #b9a27e; density: 0.012" renderer="antialias: true; colorManagement: true; maxCanvasWidth: 1920; maxCanvasHeight: 1200">
+    <a-sky color="#c6af88"></a-sky>
+    <a-assets timeout="60000">
+      <img id="h1" src="./assets/ajanta-painting.jpg">
+      <img id="h2" src="./assets/sarnath-lion-capital.jpg">
+      <img id="h3" src="./assets/padmapani-ajanta.jpg">
+      <img id="h4" src="./assets/taj-mahal.jpg">
+      <img id="h5" src="./assets/konark-sun-temple.jpg">
+      <img id="h6" src="./assets/virupaksha-hampi.jpg">
+      <img id="h7" src="./assets/madhubani-paintings.jpg">
+      <img id="floorPattern" src="./assets/sandstone-floor.svg">
+      <a-asset-item id="natarajaModel" src="./assets/models/nataraja-scan.glb"></a-asset-item>
+      <a-asset-item id="ganeshaModel" src="./assets/models/ganesha-guimet-scan.glb"></a-asset-item>
+    </a-assets>
+    <!-- Original compact room layout, restyled in sandstone and deep umber. -->
+    <a-plane id="galleryFloor" position="0 0 0" rotation="-90 0 0" width="30" height="30" material="src: #floorPattern; repeat: 12 12; roughness: 0.92" shadow="receive: true"></a-plane>
+    <a-plane position="0 6 0" rotation="90 0 0" width="30" height="30" material="color: #493321; roughness: 1"></a-plane>
+    <a-box position="0 3 -14" width="28" height="6" depth="0.5" material="color: #765a3e; roughness: 0.96"></a-box>
+    <a-box position="-14 3 0" width="0.5" height="6" depth="28" material="color: #806341; roughness: 0.96"></a-box>
+    <a-box position="14 3 0" width="0.5" height="6" depth="28" material="color: #806341; roughness: 0.96"></a-box>
+    <!-- Fine dado and cornice rails keep the sandstone room finished without heavy ornament. -->
+    <a-box position="0 0.28 -13.70" width="27.8" height="0.12" depth="0.12" color="#b7955c"></a-box>
+    <a-box position="0 5.72 -13.70" width="27.8" height="0.16" depth="0.12" color="#b7955c"></a-box>
+    <a-box position="-13.70 0.28 0" width="0.12" height="0.12" depth="27.8" color="#b7955c"></a-box>
+    <a-box position="-13.70 5.72 0" width="0.12" height="0.16" depth="27.8" color="#b7955c"></a-box>
+    <a-box position="13.70 0.28 0" width="0.12" height="0.12" depth="27.8" color="#b7955c"></a-box>
+    <a-box position="13.70 5.72 0" width="0.12" height="0.16" depth="27.8" color="#b7955c"></a-box>
+    <a-entity light="type: ambient; intensity: 0.38; color: #ffe4b0"></a-entity>
+    <a-entity light="type: hemisphere; color: #fff0cd; groundColor: #6d4c2c; intensity: 0.42"></a-entity>
+    <a-entity light="type: directional; intensity: 0.32; color: #ffe1ad; castShadow: true" position="-2 8 4"></a-entity>
+    <a-light type="spot" position="-6 5 -12" angle="30" intensity="0.38" color="#f5dfbc"></a-light>
+    <a-light type="spot" position="0 5 -12" angle="30" intensity="0.38" color="#f5dfbc"></a-light>
+    <a-light type="spot" position="6 5 -12" angle="30" intensity="0.38" color="#f5dfbc"></a-light>
+    <a-light type="spot" position="-12 5 -2" rotation="0 -90 0" angle="32" intensity="0.4" color="#f5dfbc"></a-light>
+    <a-light type="spot" position="-12 5 4" rotation="0 -90 0" angle="32" intensity="0.4" color="#f5dfbc"></a-light>
+    <a-light type="spot" position="12 5 0" rotation="0 90 0" angle="34" intensity="0.4" color="#f5dfbc"></a-light>
+
+    <!-- Each framed image carries its exhibit key; click events open the same story data used by the tour. -->
+    <a-entity class="exhibit" data-id="ajanta" data-section="ancient" position="-6 3 -13.68"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="ajanta" src="#h1" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+    <a-entity class="exhibit" data-id="sarnath" data-section="ancient" position="0 3 -13.68"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="sarnath" src="#h2" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+    <a-entity class="exhibit" data-id="padmapani" data-section="ancient" position="6 3 -13.68"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="padmapani" src="#h3" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+    <a-entity class="exhibit" data-id="taj" data-section="architecture" position="-13.68 3 -5" rotation="0 90 0"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="taj" src="#h4" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+    <a-entity class="exhibit" data-id="konark" data-section="architecture" position="-13.68 3 5" rotation="0 90 0"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="konark" src="#h5" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+    <a-entity class="exhibit" data-id="hampi" data-section="architecture" position="-13.68 3 0" rotation="0 90 0"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="hampi" src="#h6" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+    <a-entity class="exhibit" data-id="madhubani" data-section="culture" position="13.68 3 0" rotation="0 -90 0"><a-box class="frame-shell" position="0 0 -0.06" width="4.8" height="3.7" depth="0.16" color="#b38842"></a-box><a-plane class="frame-mat" position="0 0 0.025" width="4.52" height="3.42" color="#d8c7a8" material="shader: flat; side: double"></a-plane><a-plane class="exhibit-art clickable-art click-target" data-exhibit-id="madhubani" src="#h7" position="0 0 0.05" material="shader: flat; side: double"></a-plane></a-entity>
+
+    <!-- Museum rotunda: restrained concentric sandstone and brass floor inlay with a two-tier central plinth. -->
+    <a-cylinder position="0 0.012 0" radius="1.95" height="0.024" color="#493321" material="roughness: 0.94"></a-cylinder>
+    <a-torus position="0 0.028 0" rotation="90 0 0" radius="1.91" radius-tubular="0.018" color="#b7955c"></a-torus>
+    <a-torus position="0 0.03 0" rotation="90 0 0" radius="1.68" radius-tubular="0.009" color="#89693f"></a-torus>
+    <a-cylinder position="0 0.30 0" radius="1.18" height="0.56" color="#76583d" material="roughness: 0.96" shadow="cast: true; receive: true"></a-cylinder>
+    <a-cylinder position="0 0.62 0" radius="1.22" height="0.08" color="#b7955c" material="metalness: 0.35; roughness: 0.48"></a-cylinder>
+    <a-cylinder position="0 0.80 0" radius="0.98" height="0.28" color="#c5a67a" material="roughness: 0.88" shadow="cast: true; receive: true"></a-cylinder>
+    <a-cylinder position="0 0.96 0" radius="1.01" height="0.06" color="#b7955c" material="metalness: 0.35; roughness: 0.48"></a-cylinder>
+
+    <!-- Nataraja's fit offset stays on the GLB child; only this zero-offset pivot turns. -->
+    <a-entity id="natarajaAnchor" position="0 0.99 0">
+      <a-entity id="natarajaTurntable" slow-turn>
+        <a-entity id="natarajaDisplay" class="clickable-sculpture">
+          <a-entity class="click-target" data-exhibit-id="nataraja" gltf-model="#natarajaModel" fit-sculpture="height: 0.96" heritage-surface="color: #a97946; roughness: 0.72; metalness: 0.12"></a-entity>
+        </a-entity>
+      </a-entity>
+    </a-entity>
+    <a-light type="spot" position="0 5.1 0" rotation="-90 0 0" angle="34" intensity="0.78" color="#ffe0aa"></a-light>
+
+    <!-- Ganesha reuses the culture alcove's existing secondary pedestal; this scan remains stationary. -->
+    <a-cylinder position="9.5 0.40 -5" radius="0.68" height="0.80" color="#63452d" shadow="cast: true; receive: true"></a-cylinder>
+    <a-cylinder position="9.5 0.83 -5" radius="0.76" height="0.08" color="#b7955c"></a-cylinder>
+    <a-entity id="ganeshaDisplay" class="clickable-sculpture" position="9.5 0.87 -5">
+      <a-entity class="click-target" data-exhibit-id="ganesha" gltf-model="#ganeshaModel" fit-sculpture="height: 1.0" heritage-surface="color: #d4c2a1; roughness: 0.86; metalness: 0.02"></a-entity>
+    </a-entity>
+    <a-light type="spot" position="9.5 4.4 -5" rotation="-90 0 0" angle="38" intensity="0.52" color="#ffe6c1"></a-light>
+
+    <a-entity id="cameraRig" position="0 1.6 10" wasd-controls="fly: false; acceleration: 28"><a-camera camera="active: true; fov: 80" look-controls="pointerLockEnabled: false; magicWindowTrackingEnabled: false" mouse-zoom=""><a-entity cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .click-target; far: 30"></a-entity></a-camera></a-entity>
+  </a-scene>
+
+  <script>
+    AFRAME.registerComponent('mouse-zoom', {
+      init: function () {
+        this.onWheel = (event) => {
+          const camera = this.el.getObject3D('camera');
+          if (!camera) return;
+          camera.fov = Math.max(35, Math.min(85, camera.fov + event.deltaY * 0.025));
+          camera.updateProjectionMatrix();
+        };
+        window.addEventListener('wheel', this.onWheel, { passive: true });
+      },
+      remove: function () { window.removeEventListener('wheel', this.onWheel); }
+    });
+
+    // Exhibit facts are stored once and shared by click panels and tour controls.
+    const exhibits = {
+      ajanta: { title:"Ajanta Cave Murals", section:'Ancient India', period:"2nd century BCE – 6th century CE", location:"Ajanta, Maharashtra", significance:"The Ajanta Caves are among India's most celebrated examples of ancient Buddhist art and architecture. Carved into a horseshoe-shaped rock cliff in Maharashtra, this group of 30 caves served as Buddhist monasteries and prayer halls. Their walls and ceilings are decorated with elaborate paintings depicting the life of Buddha, Jataka tales, royal processions and everyday life in ancient India. Created across different periods, these murals demonstrate remarkable skill in composition, expression and the use of natural pigments. The Ajanta paintings provide a valuable glimpse into the religious beliefs, social life and artistic achievements of ancient Indian civilisation.", sectionKey:'ancient', view:{x:-6,z:-6,yaw:0} },
+      sarnath: { title:"Sarnath Lion Capital of Ashoka", section:'Ancient India', period:"3rd century BCE, Mauryan Empire", location:"Sarnath, Uttar Pradesh", significance:"The Lion Capital of Ashoka is one of the most significant surviving masterpieces of Mauryan sculpture. Commissioned during the reign of Emperor Ashoka around 250 BCE, it originally stood atop a pillar at Sarnath, where Gautama Buddha delivered his first sermon. The capital features four powerful lions standing back-to-back, symbolising strength and the spread of the Buddha's teachings in all directions. Its circular abacus features an elephant, a horse, a bull and a lion, separated by Dharma Chakras. This remarkable sculpture was adopted as the National Emblem of India on 26 January 1950. The Ashoka Chakra on India's national flag is also inspired by this heritage.", sectionKey:'ancient', view:{x:0,z:-6,yaw:0} },
+      padmapani: { title:"Padmapani Bodhisattva", section:'Ancient India', period:"Approximately 5th century CE", location:"Ajanta Cave 1, Maharashtra", significance:"The Padmapani Bodhisattva is one of the most famous paintings found inside the Ajanta Caves. It depicts a Bodhisattva, a being who delays attaining final enlightenment to help others achieve liberation. Padmapani, whose name refers to the lotus held in his hand, is associated with compassion. The painting is admired for its peaceful expression, graceful posture, elaborate jewellery and beautifully detailed crown. The artist used delicate outlines, subtle shading and carefully blended colours to create a sense of depth and life. This masterpiece represents the sophistication of ancient Indian mural painting and the spiritual ideals of Mahayana Buddhism.", sectionKey:'ancient', view:{x:6,z:-6,yaw:0} },
+      taj: { title:"Taj Mahal", section:'Architecture & Monuments', period:"17th century CE, Mughal Empire", location:"Agra, Uttar Pradesh", significance:"The Taj Mahal is an extraordinary monument of love and one of the finest examples of Mughal architecture. Commissioned by Emperor Shah Jahan in memory of his wife Mumtaz Mahal, its construction began in 1632 and the main mausoleum was completed in 1648. Built primarily from white marble, the monument combines Persian, Islamic and Indian architectural influences. Its perfectly balanced symmetry, enormous central dome, four minarets and intricate floral decorations make it an architectural masterpiece. One of its most distinctive features is Pietra Dura, a decorative technique in which carefully cut semi-precious stones are embedded into marble to create detailed floral patterns. The Taj Mahal became a UNESCO World Heritage Site in 1983.", sectionKey:'architecture', view:{x:-6,z:-5,yaw:90} },
+      konark: { title:"Konark Sun Temple", section:'Architecture & Monuments', period:"13th century CE", location:"Konark, Odisha", significance:"The Konark Sun Temple is a magnificent example of Kalinga temple architecture, built during the reign of King Narasimhadeva I of the Eastern Ganga dynasty. Designed as a colossal stone chariot carrying Surya, the Hindu Sun God, the temple features twelve pairs of intricately carved wheels and seven stone horses. Its architecture represents the movement of the Sun across the heavens and reflects the importance of solar worship in ancient India. The temple is covered with detailed sculptures depicting deities, musicians, dancers, animals and scenes from everyday life. Its extraordinary craftsmanship and symbolic design earned it recognition as a UNESCO World Heritage Site in 1984.", sectionKey:'architecture', view:{x:-6,z:5,yaw:90} },
+      hampi: { title:"Hampi and the Vijayanagara Empire", section:'Architecture & Monuments', period:"Primarily 14th–16th centuries CE", location:"Hampi, Karnataka", significance:"Hampi was once the magnificent capital of the Vijayanagara Empire, one of the most powerful kingdoms in medieval South India. Between the 14th and 16th centuries, it developed into a prosperous centre of trade, administration, religion and culture. The surviving ruins reveal an extraordinary landscape of stone temples, royal complexes, market streets, gateways and elaborate water structures. Among its most famous monuments are the Virupaksha Temple, Vittala Temple and the iconic Stone Chariot. The architecture combines impressive scale with intricate stone carvings and engineering techniques. Today, Hampi is recognised as a UNESCO World Heritage Site and stands as a reminder of the artistic and architectural achievements of the Vijayanagara civilisation.", sectionKey:'architecture', view:{x:-6,z:0,yaw:90} },
+      madhubani: { title:"Madhubani Painting", section:'Art & Culture', period:"Traditional folk art with centuries-old roots", location:"Mithila region, Bihar", significance:"Madhubani painting, also known as Mithila art, is a traditional Indian folk art originating in the Mithila region of Bihar. Traditionally practised by women, the art form was created on the walls and floors of homes using natural pigments and simple handmade tools. Its distinctive style is recognised by bold outlines, vibrant colours, intricate geometric patterns and almost no empty spaces. Common subjects include Hindu deities, the Sun, the Moon, plants, animals, marriage ceremonies and scenes from everyday life. Different styles, such as Bharni and Kachni, demonstrate the variety of techniques used by artists. Today, Madhubani painting continues to preserve regional traditions while reaching audiences across the world.", sectionKey:'culture', view:{x:6,z:0,yaw:-90} },
+      nataraja: { title:"Nataraja, Shiva as the Lord of Dance", section:'Art & Culture', period:"Chola period, approximately 10th–12th centuries CE", location:"South India, Tamil Nadu", significance:"Nataraja represents Lord Shiva in his cosmic form as the Lord of Dance and is one of the greatest achievements of traditional Indian bronze sculpture. The figure depicts Shiva dancing within a circular ring of flames, representing the continuous cycle of creation, preservation and destruction. His upper right hand holds a damaru, or hand drum, symbolising the sound of creation, while his upper left hand carries a flame representing destruction. His lower right hand offers protection through the Abhaya Mudra, while his raised foot symbolises liberation. Beneath his other foot lies Apasmara, representing ignorance. The sculpture captures movement, balance and profound philosophical meaning in a single artistic composition.", sectionKey:'culture', view:{x:0,z:3.6,yaw:0} },
+      ganesha: { title:"Lord Ganesha", section:'Art & Culture', period:"Historical period of the scanned sculpture not independently established", location:"Sculpture represented in the digital collection of Musée Guimet, Paris", significance:"Lord Ganesha, also known as Ganapati and Vinayaka, is one of the most widely worshipped deities in Hindu tradition. Recognisable by his elephant head and human form, Ganesha is revered as the remover of obstacles, the patron of wisdom and knowledge, and the deity of new beginnings. He is traditionally worshipped before important ceremonies, journeys and new ventures to seek blessings and success. His elephant head is associated with wisdom and understanding, while his large ears symbolise the importance of listening. Ganesha is also closely associated with learning, literature, arts and sciences. His imagery has inspired generations of Indian sculptors and artists, making him one of the most recognisable figures in Indian cultural heritage.", sectionKey:'culture', view:{x:6.8,z:-5,yaw:-90} }
+    };
+    const tourOrder = ['ajanta','sarnath','padmapani','taj','konark','hampi','madhubani','nataraja','ganesha'];
+    const $ = (id) => document.getElementById(id);
+    const panel = $('infoPanel');
+    let tourIndex = -1;
+    let activeSection = 'ancient';
+    const scene = document.querySelector('a-scene');
+    function fitArtworkPlanes() {
+      document.querySelectorAll('.exhibit').forEach((exhibit) => {
+        const plane = exhibit.querySelector('.exhibit-art');
+        const image = $(plane.getAttribute('src').slice(1));
+        if (!image || !image.naturalWidth || !image.naturalHeight) {
+          console.error(`BHARAT 360: exhibit image failed to load (${image ? image.src : plane.getAttribute('src')})`);
+          return;
+        }
+        // Contain each full artwork, then size its frame and inner mat around the source aspect ratio.
+        const scale = Math.min(2.884 / image.naturalWidth, 2.156 / image.naturalHeight);
+        const width = image.naturalWidth * scale;
+        const height = image.naturalHeight * scale;
+        const frameWidth = width + 0.30;
+        const frameHeight = height + 0.30;
+        plane.setAttribute('width', width.toFixed(3));
+        plane.setAttribute('height', height.toFixed(3));
+        exhibit.querySelector('.frame-shell').setAttribute('width', frameWidth.toFixed(3));
+        exhibit.querySelector('.frame-shell').setAttribute('height', frameHeight.toFixed(3));
+        exhibit.querySelector('.frame-mat').setAttribute('width', (width + 0.12).toFixed(3));
+        exhibit.querySelector('.frame-mat').setAttribute('height', (height + 0.12).toFixed(3));
+      });
+    }
+    if (scene.hasLoaded) fitArtworkPlanes();
+    else scene.addEventListener('loaded', fitArtworkPlanes, { once: true });
+    function showExhibit(id, fromTour = false) {
+      const item = exhibits[id]; if (!item) return;
+      if (!fromTour && tourIndex >= 0) stopTour();
+      activeSection = item.sectionKey;
+      document.querySelectorAll('.section-button').forEach(button => button.classList.toggle('active', button.dataset.section === activeSection));
+      $('infoSection').textContent = item.section; $('infoTitle').textContent = item.title;
+      $('infoPeriod').textContent = item.period; $('infoLocation').textContent = item.location;
+      $('infoSignificance').textContent = item.significance; panel.classList.remove('hidden');
+    }
+    function closePanel() { panel.classList.add('hidden'); }
+    function placeVisitor(x, z, yaw) {
+      const camera = document.querySelector('a-camera');
+      const rig = $('cameraRig');
+      const look = camera.components['look-controls'];
+      rig.setAttribute('position', `${x} 1.6 ${z}`);
+      rig.setAttribute('rotation', `0 ${yaw} 0`);
+      camera.setAttribute('position', '0 0 0');
+      camera.setAttribute('rotation', '0 0 0');
+      // Put yaw on the rig and reset mouse-look offsets so navigation always faces its section.
+      if (look && look.yawObject && look.pitchObject) {
+        look.yawObject.rotation.set(0, 0, 0);
+        look.pitchObject.rotation.set(0, 0, 0);
+      }
+    }
+    function moveToSection(key) {
+      const poses = { ancient:{x:0,z:8,yaw:0}, architecture:{x:-7,z:0,yaw:90}, culture:{x:7,z:-6,yaw:-122} };
+      const section = Object.prototype.hasOwnProperty.call(poses, key) ? key : 'ancient';
+      const pose = poses[section];
+      activeSection = section;
+      placeVisitor(pose.x, pose.z, pose.yaw);
+      document.querySelectorAll('.section-button').forEach(button => button.classList.toggle('active', button.dataset.section === section));
+    }
+    function tourShow(index) {
+      tourIndex = Math.max(0, Math.min(tourOrder.length - 1, index));
+      const item = exhibits[tourOrder[tourIndex]]; moveToSection(item.sectionKey);
+      placeVisitor(item.view.x, item.view.z, item.view.yaw);
+      $('tourStatus').textContent = `EXHIBIT ${tourIndex + 1} / ${tourOrder.length}`; showExhibit(tourOrder[tourIndex], true);
+    }
+    function exhibitFromRay() {
+      const cursor = document.querySelector('[cursor]');
+      const hit = cursor && cursor.components.cursor && cursor.components.cursor.intersectedEl;
+      return hit && hit.dataset.exhibitId ? hit.dataset.exhibitId : null;
+    }
+    function bindExhibitClicks() {
+      const canvas = scene.canvas;
+      if (!canvas || canvas.dataset.exhibitClicksBound) return;
+      canvas.dataset.exhibitClicksBound = 'true';
+      const clickRay = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      canvas.addEventListener('click', (event) => {
+        const bounds = canvas.getBoundingClientRect();
+        pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+        clickRay.setFromCamera(pointer, scene.camera);
+        const intersections = clickRay.intersectObject(scene.object3D, true);
+        let id = null;
+        for (const intersection of intersections) {
+          let node = intersection.object;
+          while (node && !node.el) node = node.parent;
+          const art = node && node.el && node.el.closest('.click-target');
+          if (art && art.dataset.exhibitId) { id = art.dataset.exhibitId; break; }
+        }
+        // Keep A-Frame's cursor intersection as a fallback when the pointer ray misses a mesh wrapper.
+        if (!id) id = exhibitFromRay();
+        if (id) showExhibit(id);
+      });
+    }
+    document.querySelectorAll('.click-target').forEach((target) => {
+      const openDetails = (event) => {
+        if (event && event.stopPropagation) event.stopPropagation();
+        showExhibit(target.dataset.exhibitId);
+      };
+      target.addEventListener('click', openDetails);
+    });
+    if (scene.canvas) bindExhibitClicks();
+    else scene.addEventListener('render-target-loaded', bindExhibitClicks, { once: true });
+    document.querySelectorAll('.section-button').forEach(button => button.addEventListener('click', () => { stopTour(); moveToSection(button.dataset.section); }));
+    const catalog = $('exhibitCatalog');
+    $('browseExhibits').addEventListener('click', () => catalog.classList.remove('hidden'));
+    $('catalogClose').addEventListener('click', () => catalog.classList.add('hidden'));
+    catalog.addEventListener('click', event => { if (event.target === catalog) catalog.classList.add('hidden'); });
+    document.querySelectorAll('[data-catalog-exhibit]').forEach(button => button.addEventListener('click', () => {
+      const id = button.dataset.catalogExhibit;
+      const item = exhibits[id];
+      if (!item) return;
+      stopTour();
+      moveToSection(item.sectionKey);
+      placeVisitor(item.view.x, item.view.z, item.view.yaw);
+      catalog.classList.add('hidden');
+      showExhibit(id);
+    }));
+    function stopTour() { tourIndex = -1; $('tourControls').classList.add('hidden'); closePanel(); }
+    $('explore').addEventListener('click', () => $('welcome').classList.add('hidden'));
+    $('infoClose').addEventListener('click', closePanel);
+    panel.addEventListener('click', event => { if (event.target === panel) closePanel(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') { closePanel(); if (tourIndex >= 0) stopTour(); } });
+    $('tourStart').addEventListener('click', () => { $('welcome').classList.add('hidden'); $('tourControls').classList.remove('hidden'); tourShow(0); });
+    $('tourNext').addEventListener('click', () => { if (tourIndex < tourOrder.length - 1) tourShow(tourIndex + 1); else stopTour(); });
+    $('tourPrev').addEventListener('click', () => tourShow(Math.max(0, tourIndex - 1)));
+    $('tourExit').addEventListener('click', stopTour);
+  </script>
+</body>
+</html>

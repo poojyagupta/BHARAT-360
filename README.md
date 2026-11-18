@@ -4,13 +4,36 @@ A lightweight, browser-based heritage museum built on the original Neural Nexus 
 
 ## Run locally
 
-From this project directory:
+The application entry point is **`index.html`**. It contains the A-Frame scene, interface, exhibit data and interaction logic. There is no build step, package installation, backend, or database. Because browsers restrict WebGL and local model/image files opened directly with `file://`, serve the folder over HTTP.
+
+### On your own computer
+
+Install Python 3 if it is not already available, then clone the public repository:
+
+```sh
+git clone https://github.com/poojyagupta/BHARAT-360.git
+cd BHARAT-360
+```
+
+Start the local static web server from the project folder:
 
 ```sh
 python3 -m http.server 8000
 ```
 
-Open [http://localhost:8000](http://localhost:8000). Use a local HTTP server rather than opening `index.html` as a `file://` URL so WebGL, GLB and image assets load correctly.
+Open [http://localhost:8000](http://localhost:8000) in Chrome, Safari, Firefox, or another modern WebGL-enabled browser. On macOS you can open it from Terminal with `open http://localhost:8000`; on other systems, enter the address in your browser. To stop the server, return to Terminal and press **Control-C**.
+
+If port 8000 is already in use, start the server on another port, for example `python3 -m http.server 8001`, and open `http://localhost:8001` instead. Keep the server running while viewing the museum.
+
+### Runtime libraries and assets
+
+- **A-Frame 1.5.0** provides the WebGL 3D scene and camera controls. Its runtime is included locally at `assets/vendor/aframe.min.js`.
+- **Three.js** is included inside the vendored A-Frame runtime; it is not a separate package to install.
+- **Google Draco** decodes the compressed sculpture meshes. The decoder files are included under `assets/vendor/draco/` and are served locally.
+- The seven artwork images and both GLB sculpture models are stored under `assets/` and load from the local server.
+- Python's built-in `http.server` only serves the static files. It is not an application backend.
+
+No `npm install`, Node.js setup, or compilation is required. A dedicated graphics card is not required; a recent laptop with WebGL support is sufficient.
 
 ## Controls and features
 
